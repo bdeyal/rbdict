@@ -7,16 +7,16 @@ Written Eyal Ben-David  (bdeyal@gmail.com)
 License : LGPL
 
 Build:
-make
+	`make`
 
 Test:
-make test
+	`make test`
 
 On Linux you can run:
-make memtest (provided valgrind is installed)
+   `make memtest`
 
 Windows Build:
-nmake -f NMakefile [test]
+	`nmake -f NMakefile [test]`
 
 Test file is a word list file words.txt whic was generated
 by this command on a Linux machine:

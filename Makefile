@@ -22,5 +22,8 @@ memtest: all
 	valgrind --quiet --leak-check=full ./$$prog 1>/dev/null; \
 	done
 
+test: all
+	./$(EXES)
+
 clean:
 	rm -f *~ $(RBDICT_O) $(EXES)
