@@ -21,7 +21,7 @@ nmake -f NMakefile [test]
 Test file is a word list file words.txt whic was generated
 by this command on a Linux machine:
 
-   grep -P "e.*b.*d.*" /usr/share/dict/words > words.txt
+   `grep -P "e.*b.*d.*" /usr/share/dict/words > words.txt`
 
 
 Eyal Ben-David
