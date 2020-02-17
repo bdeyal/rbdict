@@ -50,12 +50,12 @@ int print_elem(const char* k, const char* v, void* user_data)
 
 void test_rbdict_str_str()
 {
-	size_t index;
-	char** keys;
-	size_t dsize;
+    size_t index;
+    char** keys;
+    size_t dsize;
 
     struct rbdict* htab = build_hash_from_words_str_str();
-	dsize = rbdict_size(htab);
+    dsize = rbdict_size(htab);
 
     printf("Data read OK\n");
     printf("Word count = %zu\n", dsize);
@@ -64,22 +64,22 @@ void test_rbdict_str_str()
     struct rbdict* clone = rbdict_clone(htab);
     rbdict_destroy(htab);
 
-	/*
-	 * get the dict keys sorted
-	 */
-	if ((keys = (char**) malloc(dsize * sizeof(char*))) == NULL)
-		return;
+    /*
+     * get the dict keys sorted
+     */
+    if ((keys = (char**) malloc(dsize * sizeof(char*))) == NULL)
+        return;
 
-	if (rbdict_keys(clone, (void**) keys, dsize, RBDICT_KEYS_SORTED) != 0)
-		return;
+    if (rbdict_keys(clone, (void**) keys, dsize, RBDICT_KEYS_SORTED) != 0)
+        return;
 
-	for (index = 0; index < dsize; ++index) {
-		char* key = keys[index];
-		char* val = (char*)rbdict_search(clone, key);
-		printf("%s => %s\n", key, val);
-	}
+    for (index = 0; index < dsize; ++index) {
+        char* key = keys[index];
+        char* val = (char*)rbdict_search(clone, key);
+        printf("%s => %s\n", key, val);
+    }
 
-	free(keys);
+    free(keys);
     rbdict_destroy(clone);
 }
 
@@ -125,10 +125,10 @@ int print_elem_int(const char* k, const char* v, void* user_data)
 
 void test_rbdict_str_int()
 {
-	size_t dsize;
+    size_t dsize;
 
     struct rbdict* htab = build_hash_from_words_str_int();
-	dsize = rbdict_size(htab);
+    dsize = rbdict_size(htab);
 
     printf("Data read OK\n");
     printf("Word count = %zu\n", dsize);
@@ -147,7 +147,7 @@ int print_elem_int_int(const char* k, const char* v, void* user_data)
 
 void test_rbdict_int_int()
 {
-	size_t dsize;
+    size_t dsize;
     int index;
 
     struct rbdict* htab = rbdict_create_predefined(RBDICT_INT_INT);
@@ -157,7 +157,7 @@ void test_rbdict_int_int()
         rbdict_insert(htab, key, val);
     }
 
-	dsize = rbdict_size(htab);
+    dsize = rbdict_size(htab);
     printf("Element count = %zu\n", dsize);
     struct rbdict* htab2 = rbdict_clone(htab);
 

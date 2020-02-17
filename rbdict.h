@@ -27,19 +27,19 @@ typedef int   (*rbdict_visit_t)(const void*, const void*, void* user_data);
 struct rbdict_operations
 {
     /* compare keys */
-	rbdict_compare_t k_compare;
+    rbdict_compare_t k_compare;
 
     /* key cleanup */
-	rbdict_destroy_t k_destroy;
+    rbdict_destroy_t k_destroy;
 
     /* key copy */
-	rbdict_clone_t   k_clone;
+    rbdict_clone_t   k_clone;
 
     /* value cleanup */
-	rbdict_destroy_t v_destroy;
+    rbdict_destroy_t v_destroy;
 
     /* value copy */
-	rbdict_clone_t   v_clone;
+    rbdict_clone_t   v_clone;
 };
 
 /* rbdict creation flags */
@@ -119,8 +119,8 @@ size_t rbdict_size(const struct rbdict* pRoot);
  *  Fill in the keys in the supplied buffer.
  */
 enum {
-	RBDICT_KEYS_SORTED = 1,
-	RBDICT_KEYS_COPY = 2
+    RBDICT_KEYS_SORTED = 1,
+    RBDICT_KEYS_COPY = 2
 };
 
 int rbdict_keys(const struct rbdict* pRoot, void* buf[], size_t bufsize, int flags);
