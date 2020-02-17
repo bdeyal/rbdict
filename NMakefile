@@ -1,0 +1,20 @@
+# Simple -*- NMakefile -*- for rbdict
+#
+CFLAGS=/Ox /nologo
+DEPS=NMakefile rbdict.h
+OBJS=rbdict.obj rbdict_test.obj kernel-rbtree.obj
+EXE=rbdict_test.exe
+
+all: $(EXE) $(DEPS)
+
+test: all
+	$(EXE)
+
+$(EXE): $(OBJS)
+	$(CC) /nologo -Fe"$(EXE)" $(OBJS)
+
+clean:
+	del *~ $(OBJS)
+
+distclean: clean
+	del $(EXE)
