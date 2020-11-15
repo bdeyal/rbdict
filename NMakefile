@@ -2,19 +2,22 @@
 #
 CFLAGS=/Ox /nologo
 DEPS=NMakefile rbdict.h
-OBJS=rbdict.obj rbdict_test.obj kernel-rbtree.obj
-EXE=rbdict_test.exe
+OBJS=rbdict.obj kernel-rbtree.obj
+EXE=rbdict_test.exe word_count.exe
 
 all: $(EXE) $(DEPS)
 
 test: all
 	$(EXE)
 
-$(EXE): $(OBJS)
-	$(CC) /nologo -Fe"$(EXE)" $(OBJS)
+rbdict_test.exe: $(OBJS) rbdict_test.obj
+	$(CC) /nologo -Fe"$@" $(OBJS) rbdict_test.obj
+
+word_count.exe: $(OBJS) word_count.obj
+	$(CC) /nologo -Fe"$@" $(OBJS) word_count.obj
 
 clean:
-	del *~ $(OBJS)
+	del *~ *.obj
 
 distclean: clean
 	del $(EXE)
