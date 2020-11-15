@@ -1,20 +1,22 @@
 
 DEPS=Makefile rbdict.h
-CFLAGS=-D_GNU_SOURCE -DNDEBUG -O2 -Wall -Wextra -Wno-unused-parameter -fno-exceptions
+CFLAGS=-D_GNU_SOURCE -DNDEBUG -O2 -Wall -Wextra -Wno-unused-parameter
 LFLAGS=-s
 
-COMP=gcc
-RBDICT_O=rbdict.o rbdict_test.o kernel-rbtree.o
+RBDICT_O=rbdict.o kernel-rbtree.o
 
-EXES=rbdict
+EXES=rbdict wcnt
 
 all: $(EXES) $(DEPS)
 
-rbdict: $(RBDICT_O)
-	$(COMP) -o $@ $(RBDICT_O) $(LFLAGS)
+rbdict: rbdict_test.o $(RBDICT_O)
+	$(CC) -o $@ rbdict_test.o $(RBDICT_O) $(LFLAGS)
+
+wcnt: word_count.o $(RBDICT_O)
+	$(CC) -o $@ word_count.o $(RBDICT_O) $(LFLAGS)
 
 %.o: %.c $(DEPS)
-	$(COMP) -c $(CFLAGS) -o $@ $<
+	$(CC) -c $(CFLAGS) -o $@ $<
 
 memtest: all
 	@for prog in $(EXES) ; do \
@@ -26,4 +28,4 @@ test: all
 	./$(EXES)
 
 clean:
-	rm -f *~ $(RBDICT_O) $(EXES)
+	rm -f *~ *.o $(EXES)

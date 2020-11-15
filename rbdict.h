@@ -14,12 +14,14 @@ extern "C" {
 struct rbdict;
 
 /*
- *  Function pointer type for comparison, copy and clean
+ *  Function pointer type for comparison, copy, clean and visit update
  */
-typedef int   (*rbdict_compare_t)(const void*, const void*);
-typedef void  (*rbdict_destroy_t)(void*);
-typedef void* (*rbdict_clone_t)  (const void*);
-typedef int   (*rbdict_visit_t)(const void*, const void*, void* user_data);
+typedef int     (*rbdict_compare_t)(const void*, const void*);
+typedef void    (*rbdict_destroy_t)(void*);
+typedef void*   (*rbdict_clone_t)  (const void*);
+typedef int     (*rbdict_visit_t)(const void*, const void*, void* user_data);
+typedef int     (*rbdict_update_t)(void* value, void* user_data);
+typedef int64_t (*rbdict_iupdate_t)(int64_t n);
 
 /*
  *  Operations needed for each dictionary
@@ -101,6 +103,28 @@ int rbdict_insert_nodup(struct rbdict*, void* key, void* value);
     rbdict_insert_nodup((dict), ((void*)(uintptr_t)(k)), ((void*)(uintptr_t)(v)))
 
 /*
+ * Update an existing key calling an updater function.
+ * if does not exist create with default_value.
+ * Always duplicate key and value
+ */
+int rbdict_update_ex(struct rbdict*,
+                     const void* key,
+                     const void* default_value,
+                     rbdict_update_t updater,
+                     void* user_data);
+
+/*
+ * Syntactic sugar. update with automatic cast and NULL user data
+ */
+#define rbdict_update(dict, k, v, u)    \
+    rbdict_update_ex((dict), ((void*)(uintptr_t)(k)), ((void*)(uintptr_t)(v)), (u), NULL)
+
+/*
+ * increment value (in case of a integral valued rbdict)
+ */
+int rbdict_int_update(struct rbdict* pRoot, const void* key, int64_t default_value, rbdict_iupdate_t f);
+
+/*
  * Return the value associated with a key or NULL if no match
  */
 void* rbdict_search(const struct rbdict* pRoot, void* key);
@@ -120,10 +144,12 @@ size_t rbdict_size(const struct rbdict* pRoot);
  */
 enum {
     RBDICT_KEYS_SORTED = 1,
-    RBDICT_KEYS_COPY = 2
+    RBDICT_KEYS_CLONE = 2,
+    RBDICT_VALUES_CLONE = 4,
 };
 
 int rbdict_keys(const struct rbdict* pRoot, void* buf[], size_t bufsize, int flags);
+int rbdict_values(const struct rbdict* pRoot, void* buf[], size_t bufsize, int flags);
 
 /*
  * foreach calls the provided function for each pair in the dict

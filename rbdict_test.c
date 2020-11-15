@@ -4,9 +4,16 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <ctype.h>
+
 #include "rbdict.h"
 
 const char* word_file = "words.txt";
+
+static int64_t incint(int64_t n)
+{
+    return n + 1;
+}
 
 struct rbdict* build_hash_from_words_str_str()
 {
@@ -48,6 +55,18 @@ int print_elem(const char* k, const char* v, void* user_data)
     return 0;
 }
 
+int upcase(void* p, void* unused)
+{
+    char* s = (char*) p;
+
+    while (*s) {
+        *s = toupper(*s);
+        ++s;
+    }
+
+    return 0;
+}
+
 void test_rbdict_str_str()
 {
     size_t index;
@@ -70,11 +89,12 @@ void test_rbdict_str_str()
     if ((keys = (char**) malloc(dsize * sizeof(char*))) == NULL)
         return;
 
-    if (rbdict_keys(clone, (void**) keys, dsize, RBDICT_KEYS_SORTED) != 0)
+    if (rbdict_keys(clone, (void**) keys, dsize, 0) != 0)
         return;
 
     for (index = 0; index < dsize; ++index) {
         char* key = keys[index];
+        rbdict_update(clone, key, "", upcase);
         char* val = (char*)rbdict_search(clone, key);
         printf("%s => %s\n", key, val);
     }
@@ -101,9 +121,14 @@ struct rbdict* build_hash_from_words_str_int()
             index = 0;
 
             if (strlen(word) > 0) {
-                int64_t len = strlen(word);
-                if (rbdict_insert(htab, strdup(word), len) != 0) {
-                    perror("dict insert");
+                //int64_t len = strlen(word);
+                if (rbdict_int_update(htab, word, 1, incint) != 0) {
+                    perror("dict update");
+                    exit(1);
+                }
+
+                if (rbdict_int_update(htab, word, 1, incint) != 0) {
+                    perror("dict update");
                     exit(1);
                 }
             }
@@ -112,6 +137,8 @@ struct rbdict* build_hash_from_words_str_int()
             word[index++] = c;
         }
     }
+
+    rbdict_int_update(htab, "zebroid", 1, incint);
 
     fclose(fp);
     return htab;

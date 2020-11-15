@@ -167,6 +167,51 @@ err_no_ops:
 }
 /*----------------------------------------------------------------*/
 
+static int _rbdict_clone_kv(const void* v,
+                            void** nv,
+                            rbdict_clone_t klone,
+                            int is_int)
+{
+    void* tmp;
+
+    if (is_int) {
+        *nv = (void*)v;
+        return 0;
+    }
+
+    if (!v) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if ((tmp = klone(v)) == NULL) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    *nv = tmp;
+    return 0;
+}
+/*----------------------------------------------------------------*/
+
+static int _rbdict_clone_value(struct rbdict* pRoot, const void* v, void** nv)
+{
+    return _rbdict_clone_kv(v,
+                            nv,
+                            pRoot->ops.v_clone,
+                            pRoot->flags & RBDICT_INT_VAL);
+}
+/*----------------------------------------------------------------*/
+
+static int _rbdict_clone_key(struct rbdict* pRoot, const void* k, void** nk)
+{
+    return _rbdict_clone_kv(k,
+                            nk,
+                            pRoot->ops.k_clone,
+                            pRoot->flags & RBDICT_INT_KEY);
+}
+/*----------------------------------------------------------------*/
+
 static void _rbdict_destroy_helper(struct rbdict* pDict, struct rb_node* n)
 {
     if (!n)
@@ -261,12 +306,14 @@ int rbdict_insert_nodup(struct rbdict* pRoot, void* key, void* value)
         else {
             pRoot->ops.v_destroy(pThis->value);
             pThis->value = value;
-            return 1;
+            return 0;
         }
     }
 
     /* make new data object with node */
-    n = make_rbdict_pair(key, value);
+    if ((n = make_rbdict_pair(key, value)) == NULL) {
+        return -1;
+    }
 
     /* Add new node and rebalance tree. */
     rb_link_node(&n->m_node, parent, new_node);
@@ -282,36 +329,18 @@ int rbdict_insert_nodup(struct rbdict* pRoot, void* key, void* value)
  */
 int rbdict_insert_dup(struct rbdict* pRoot, void* key, void* value)
 {
-    void* key_dup;
-    void* val_dup;
+    void* key_dup = 0;
+    void* val_dup = 0;
 
-    if (pRoot->flags & RBDICT_INT_KEY) {
-        key_dup = key;
-    }
-    else {
-        if (!key) {
-            errno = EINVAL;
-            return -1;
-        }
-        if ((key_dup = pRoot->ops.k_clone(key)) == NULL) {
-            errno = ENOMEM;
-            return -1;
-        }
+    if (_rbdict_clone_key(pRoot, key, &key_dup) < 0) {
+        errno = ENOMEM;
+        return -1;
     }
 
-    if (pRoot->flags & RBDICT_INT_VAL) {
-        val_dup = value;
-    }
-    else {
-        if (!value) {
-            errno = EINVAL;
-            return -1;
-        }
-        if ((val_dup = pRoot->ops.v_clone(value)) == NULL) {
-            pRoot->ops.k_destroy(key_dup);
-            errno = ENOMEM;
-            return -1;
-        }
+    if (_rbdict_clone_value(pRoot, value, &val_dup) < 0) {
+        pRoot->ops.k_destroy(key_dup);
+        errno = ENOMEM;
+        return -1;
     }
 
     if (rbdict_insert_nodup(pRoot, key_dup, val_dup) < 0) {
@@ -320,6 +349,146 @@ int rbdict_insert_dup(struct rbdict* pRoot, void* key, void* value)
         errno = ENOMEM;
         return -1;
     }
+
+    return 0;
+}
+/*----------------------------------------------------------------*/
+
+/*
+ * change a value
+ * Create key-value with default value if missing.
+ */
+int rbdict_int_update(struct rbdict* pRoot,
+                      const void* key,
+                      int64_t default_value,
+                      rbdict_iupdate_t updater)
+{
+    /* Must be int valued dict */
+    if ((pRoot->flags & RBDICT_INT_VAL) == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    int int_key = (pRoot->flags & RBDICT_INT_KEY);
+
+    struct rb_root* root = &pRoot->root;
+    struct rb_node** new_node = &root->rb_node;
+    struct rb_node*  parent = NULL;
+    struct rbdict_pair* n = NULL;
+
+    /* Figure out where to put new node */
+    while (*new_node) {
+        struct rbdict_pair* pThis;
+        int result;
+
+        parent = *new_node;
+        pThis = node_to_pair(parent);
+
+        result = int_key ?
+            compare_int(key, pThis->key) :
+            pRoot->ops.k_compare(key, pThis->key);
+
+        if (result < 0)
+            new_node = &parent->rb_left;
+        else if (result > 0)
+            new_node = &parent->rb_right;
+        else {
+            pThis->value = (void*)(updater((int64_t)pThis->value));
+            return 0;
+        }
+    }
+
+    void* new_value = (void*) default_value;
+    void* new_key = 0;
+    if (_rbdict_clone_key(pRoot, key, &new_key) < 0) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    /* make new data object with node */
+    if ((n = make_rbdict_pair(new_key, new_value)) == NULL) {
+        pRoot->ops.k_destroy(new_key);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    /* Add new node and rebalance tree. */
+    rb_link_node(&n->m_node, parent, new_node);
+    rb_insert_color(&n->m_node, root);
+    ++pRoot->nelem;
+
+    return 0;
+}
+/*----------------------------------------------------------------*/
+
+/*
+ * Update a value by an updater function.
+ * Create key-value with default value if missing.
+ * Updater function gets the address of the value object.
+ */
+int rbdict_update_ex(struct rbdict* pRoot,
+                     const void* key,
+                     const void* default_value,
+                     rbdict_update_t updater,
+                     void* user_data)
+{
+    struct rb_root* root = &pRoot->root;
+    struct rb_node** new_node = &root->rb_node;
+    struct rb_node*  parent = NULL;
+    struct rbdict_pair* n = NULL;
+    int int_key = (pRoot->flags & RBDICT_INT_KEY);
+
+    if (!updater) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    /* Figure out where to put new node */
+    while (*new_node) {
+        struct rbdict_pair* pThis;
+        int result;
+
+        parent = *new_node;
+        pThis = node_to_pair(parent);
+
+        result = int_key ?
+            compare_int(key, pThis->key) :
+            pRoot->ops.k_compare(key, pThis->key);
+
+        if (result < 0)
+            new_node = &parent->rb_left;
+        else if (result > 0)
+            new_node = &parent->rb_right;
+        else {
+            return updater(pThis->value, user_data);
+        }
+    }
+
+    void* new_key = 0;
+    void* new_value = 0;
+    if (_rbdict_clone_key(pRoot, key, &new_key) < 0) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    if (_rbdict_clone_value(pRoot, default_value, &new_value) < 0) {
+        pRoot->ops.k_destroy(new_key);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    /* make new data object with node */
+    if ((n = make_rbdict_pair(new_key, new_value)) == NULL) {
+        pRoot->ops.k_destroy(new_key);
+        pRoot->ops.v_destroy(new_value);
+        errno = ENOMEM;
+        return -1;
+    }
+
+    /* Add new node and rebalance tree. */
+    rb_link_node(&n->m_node, parent, new_node);
+    rb_insert_color(&n->m_node, root);
+    ++pRoot->nelem;
 
     return 0;
 }
@@ -380,21 +549,62 @@ size_t rbdict_size(const struct rbdict* pRoot)
 }
 /*----------------------------------------------------------------*/
 
-
 int rbdict_keys(const struct rbdict* pRoot, void* buf[], size_t bufsize, int flags)
 {
     unsigned int bufindex = 0;
+    int should_copy = (flags & RBDICT_KEYS_CLONE);
     struct rb_root* root = (struct rb_root*) &pRoot->root;
-    struct rb_node *node;
+    struct rb_node* node = rb_first(root);
 
     if (bufsize < rbdict_size(pRoot)) {
         errno = EINVAL;
         return -1;
     }
 
-    for (node = rb_first(root); node; node = rb_next(node)) {
+    while (node) {
         struct rbdict_pair* e = node_to_pair(node);
-        buf[bufindex++] = (flags & RBDICT_KEYS_COPY) ? pRoot->ops.k_clone(e->key) : e->key;
+        void* to_add;
+
+        if (should_copy)
+            to_add = pRoot->ops.k_clone(e->key);
+        else
+            to_add = e->key;
+
+        buf[bufindex] = to_add;
+
+        ++bufindex;
+        node = rb_next(node);
+    }
+
+    return 0;
+}
+/*----------------------------------------------------------------*/
+
+int rbdict_values(const struct rbdict* pRoot, void* buf[], size_t bufsize, int flags)
+{
+    unsigned int bufindex = 0;
+    int should_copy = (flags & RBDICT_VALUES_CLONE);
+    struct rb_root* root = (struct rb_root*) &pRoot->root;
+    struct rb_node* node = rb_first(root);
+
+    if (bufsize < rbdict_size(pRoot)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    while (node) {
+        struct rbdict_pair* e = node_to_pair(node);
+        void* to_add;
+
+        if (should_copy)
+            to_add = pRoot->ops.v_clone(e->value);
+        else
+            to_add = e->value;
+
+        buf[bufindex] = to_add;
+
+        ++bufindex;
+        node = rb_next(node);
     }
 
     return 0;
